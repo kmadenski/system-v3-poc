@@ -8,6 +8,9 @@
     <style>
         body {
             padding-top: 60px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
         .free-slot {
             background-color: #d4edda !important;
@@ -35,6 +38,17 @@
         }
         .delete-btn:hover {
             color: #a71d2a;
+        }
+        .export-alert {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1055;
+        }
+        footer {
+            margin-top: auto;
+            padding: 20px 0;
+            background-color: #f8f9fa;
         }
     </style>
 </head>
@@ -65,8 +79,31 @@
     </div>
 </nav>
 
+<!-- Export Confirmation Alert -->
+<div class="alert alert-success export-alert d-none" role="alert" id="exportAlert">
+    Schedule table copied to clipboard! You can now paste it into Notion.
+</div>
+
+<!-- Export Modal for Manual Copy -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportModalLabel">Exported Schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Below is your schedule in Markdown format. You can copy it and paste it into Notion:</p>
+                <textarea class="form-control" id="exportedTable" rows="10" readonly></textarea>
+                <button class="btn btn-primary mt-3" id="copyManualBtn">Copy Manually</button>
+                <button class="btn btn-secondary mt-3" id="downloadManualBtn">Download Markdown</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Main Container -->
-<div class="container">
+<div class="container mb-5">
     <div class="row">
         <!-- Meetings List -->
         <div class="col-md-4">
@@ -143,6 +180,10 @@
                             <option value="placeholder">Placeholder</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label for="eventNote" class="form-label">Note</label>
+                        <textarea class="form-control" id="eventNote" rows="3" placeholder="Add a note (optional)"></textarea>
+                    </div>
                     <div id="addEventAlert" class="alert alert-danger d-none" role="alert">
                         Please ensure end time is after start time and does not overlap with existing events.
                     </div>
@@ -152,6 +193,11 @@
         </div>
     </div>
 </div>
+
+<!-- Footer -->
+<footer class="text-center">
+    <button class="btn btn-outline-primary" id="exportFooterBtn">Export to Notion</button>
+</footer>
 
 <!-- Bootstrap JS and dependencies (Popper.js) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -170,7 +216,8 @@
             name: "Daily Standup",
             start: "09:30",
             end: "09:45",
-            type: "obligatory"
+            type: "obligatory",
+            note: ""
         }
     ];
 
@@ -203,18 +250,26 @@
 
     // Data Persistence Functions
     function saveData() {
-        localStorage.setItem('workingHours', JSON.stringify(workingHours));
-        localStorage.setItem('events', JSON.stringify(events));
+        if (typeof(Storage) !== "undefined") {
+            localStorage.setItem('workingHours', JSON.stringify(workingHours));
+            localStorage.setItem('events', JSON.stringify(events));
+        } else {
+            alert("Sorry, your browser does not support Web Storage...");
+        }
     }
 
     function loadData() {
-        const savedWorkingHours = localStorage.getItem('workingHours');
-        const savedEvents = localStorage.getItem('events');
-        if (savedWorkingHours) {
-            workingHours = JSON.parse(savedWorkingHours);
-        }
-        if (savedEvents) {
-            events = JSON.parse(savedEvents);
+        if (typeof(Storage) !== "undefined") {
+            const savedWorkingHours = localStorage.getItem('workingHours');
+            const savedEvents = localStorage.getItem('events');
+            if (savedWorkingHours) {
+                workingHours = JSON.parse(savedWorkingHours);
+            }
+            if (savedEvents) {
+                events = JSON.parse(savedEvents);
+            }
+        } else {
+            alert("Sorry, your browser does not support Web Storage...");
         }
     }
 
@@ -228,7 +283,7 @@
             li.className = "list-group-item d-flex justify-content-between align-items-center";
 
             const eventInfo = document.createElement("div");
-            eventInfo.innerHTML = `<strong>${event.name}</strong> (${event.start} - ${event.end})`;
+            eventInfo.innerHTML = `<strong>${event.name}</strong> (${event.start} - ${event.end})<br><small>${event.note || ""}</small>`;
 
             const badgeAndDelete = document.createElement("div");
             badgeAndDelete.className = "d-flex align-items-center";
@@ -256,6 +311,13 @@
         const scheduleTable = document.getElementById("scheduleTable");
         scheduleTable.innerHTML = "";
         sortEvents();
+        const thead = document.createElement("thead");
+        thead.innerHTML = `<tr>
+                                <th>Time</th>
+                                <th>Event Name</th>
+                                <th>Type</th>
+                                <th>Note</th>
+                               </tr>`;
         const tbody = document.createElement("tbody");
 
         const workStart = timeToMinutes(workingHours.start);
@@ -271,21 +333,17 @@
                 // Free Slot
                 const tr = document.createElement("tr");
                 tr.className = "free-slot";
-                const td = document.createElement("td");
-                td.colSpan = 2;
-                td.textContent = `Free (${getDuration(minutesToTime(currentTime), minutesToTime(eventStart))})`;
-                tr.appendChild(td);
+                tr.innerHTML = `<td>${minutesToTime(currentTime)} - ${minutesToTime(eventStart)}</td>
+                                   <td colspan="3">Free (${getDuration(minutesToTime(currentTime), minutesToTime(eventStart))})</td>`;
                 tbody.appendChild(tr);
             }
 
             // Scheduled Event
             const trEvent = document.createElement("tr");
-            const tdName = document.createElement("td");
-            tdName.textContent = event.name;
-            const tdTime = document.createElement("td");
-            tdTime.textContent = `${event.start} - ${event.end}`;
-            trEvent.appendChild(tdName);
-            trEvent.appendChild(tdTime);
+            trEvent.innerHTML = `<td>${event.start} - ${event.end}</td>
+                                     <td>${event.name}</td>
+                                     <td>${capitalizeFirstLetter(event.type)}</td>
+                                     <td>${event.note || ""}</td>`;
             trEvent.className = event.type === "obligatory" ? "event-obligatory" : "event-placeholder";
             tbody.appendChild(trEvent);
 
@@ -296,13 +354,12 @@
             // Free Slot at the end
             const tr = document.createElement("tr");
             tr.className = "free-slot";
-            const td = document.createElement("td");
-            td.colSpan = 2;
-            td.textContent = `Free (${getDuration(minutesToTime(currentTime), minutesToTime(workEnd))})`;
-            tr.appendChild(td);
+            tr.innerHTML = `<td>${minutesToTime(currentTime)} - ${minutesToTime(workEnd)}</td>
+                               <td colspan="3">Free (${getDuration(minutesToTime(currentTime), minutesToTime(workEnd))})</td>`;
             tbody.appendChild(tr);
         }
 
+        scheduleTable.appendChild(thead);
         scheduleTable.appendChild(tbody);
     }
 
@@ -320,7 +377,128 @@
         }
     }
 
-    // Initialization
+    // Export to Notion Function
+    function exportToNotion() {
+        sortEvents();
+        const workStart = timeToMinutes(workingHours.start);
+        const workEnd = timeToMinutes(workingHours.end);
+
+        let currentTime = workStart;
+        let tableMarkdown = `| Time | Event Name | Type | Note |\n| --- | --- | --- | --- |\n`;
+
+        events.forEach(event => {
+            const eventStart = timeToMinutes(event.start);
+            const eventEnd = timeToMinutes(event.end);
+
+            if (eventStart > currentTime) {
+                // Free Slot
+                const freeStart = minutesToTime(currentTime);
+                const freeEnd = minutesToTime(eventStart);
+                const duration = getDuration(minutesToTime(currentTime), minutesToTime(eventStart));
+                tableMarkdown += `| ${freeStart} - ${freeEnd} | Free (${duration}) | - | - |\n`;
+            }
+
+            // Scheduled Event
+            tableMarkdown += `| ${event.start} - ${event.end} | ${event.name} | ${capitalizeFirstLetter(event.type)} | ${event.note || '-'} |\n`;
+
+            currentTime = eventEnd;
+        });
+
+        if (currentTime < workEnd) {
+            // Free Slot at the end
+            const freeStart = minutesToTime(currentTime);
+            const freeEnd = minutesToTime(workEnd);
+            const duration = getDuration(minutesToTime(currentTime), minutesToTime(workEnd));
+            tableMarkdown += `| ${freeStart} - ${freeEnd} | Free (${duration}) | - | - |\n`;
+        }
+
+        // Attempt to Copy to Clipboard
+        copyToClipboard(tableMarkdown).then(() => {
+            showExportAlert();
+        }).catch(err => {
+            console.error('Error copying to clipboard:', err);
+            // Show the export modal for manual copy
+            document.getElementById("exportedTable").value = tableMarkdown;
+            const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+            exportModal.show();
+        });
+    }
+
+    // Helper Function to Capitalize First Letter
+    function capitalizeFirstLetter(string) {
+        return string.charAt(0).toUpperCase() + string.slice(1);
+    }
+
+    // Helper Function to Copy Text to Clipboard
+    function copyToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            // Navigator clipboard api method'
+            return navigator.clipboard.writeText(text);
+        } else {
+            // text area method
+            let textArea = document.createElement("textarea");
+            textArea.value = text;
+            // Make the textarea out of viewport
+            textArea.style.position = "absolute";
+            textArea.style.left = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            return new Promise((resolve, reject) => {
+                // here the magic happens
+                document.execCommand('copy') ? resolve() : reject();
+                textArea.remove();
+            });
+        }
+    }
+
+    // Show Export Confirmation Alert
+    function showExportAlert() {
+        const exportAlert = document.getElementById("exportAlert");
+        exportAlert.classList.remove("d-none");
+        // Hide after 3 seconds
+        setTimeout(() => {
+            exportAlert.classList.add("d-none");
+        }, 3000);
+    }
+
+    // Manual Copy Button in Export Modal
+    document.getElementById("copyManualBtn").addEventListener("click", function() {
+        const exportTextarea = document.getElementById("exportedTable");
+        exportTextarea.select();
+        exportTextarea.setSelectionRange(0, 99999); // For mobile devices
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                alert('Schedule table copied to clipboard!');
+            } else {
+                alert('Failed to copy schedule table.');
+            }
+        } catch (err) {
+            alert('Failed to copy schedule table.');
+            console.error('Error copying text: ', err);
+        }
+    });
+
+    // Download as Markdown File Function
+    function downloadMarkdown() {
+        const markdownContent = document.getElementById("exportedTable").value;
+        const blob = new Blob([markdownContent], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'schedule.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Download Manual Button in Export Modal
+    document.getElementById("downloadManualBtn").addEventListener("click", downloadMarkdown);
+
+    // Initialize
     function initialize() {
         loadData();
         renderMeetings();
@@ -357,6 +535,7 @@
         const start = document.getElementById("eventStart").value;
         const end = document.getElementById("eventEnd").value;
         const type = document.getElementById("eventType").value;
+        const note = document.getElementById("eventNote").value.trim();
         const alertBox = document.getElementById("addEventAlert");
 
         if (timeToMinutes(end) <= timeToMinutes(start)) {
@@ -388,7 +567,8 @@
             name: name,
             start: start,
             end: end,
-            type: type
+            type: type,
+            note: note
         });
 
         saveData();
@@ -404,6 +584,12 @@
         renderMeetings();
         renderSchedule();
     });
+
+    // Export Button Event Listener (Footer)
+    document.getElementById("exportFooterBtn").addEventListener("click", exportToNotion);
+
+    // Export Button Event Listener (Navbar if needed)
+    // document.getElementById("exportBtn").addEventListener("click", exportToNotion);
 
     // Initialize on page load
     window.onload = initialize;
