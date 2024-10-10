@@ -160,8 +160,8 @@
 
     // Initial Data
     let workingHours = {
-        start: "08:30",
-        end: "19:00"
+        start: "08:00",
+        end: "18:00"
     };
 
     let events = [
@@ -199,6 +199,23 @@
 
     function generateUniqueId() {
         return '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Data Persistence Functions
+    function saveData() {
+        localStorage.setItem('workingHours', JSON.stringify(workingHours));
+        localStorage.setItem('events', JSON.stringify(events));
+    }
+
+    function loadData() {
+        const savedWorkingHours = localStorage.getItem('workingHours');
+        const savedEvents = localStorage.getItem('events');
+        if (savedWorkingHours) {
+            workingHours = JSON.parse(savedWorkingHours);
+        }
+        if (savedEvents) {
+            events = JSON.parse(savedEvents);
+        }
     }
 
     // Rendering Functions
@@ -297,6 +314,7 @@
         // Confirmation Dialog
         if (confirm(`Are you sure you want to delete the event "${event.name}"?`)) {
             events = events.filter(ev => ev.id !== eventId);
+            saveData();
             renderMeetings();
             renderSchedule();
         }
@@ -304,9 +322,10 @@
 
     // Initialization
     function initialize() {
+        loadData();
         renderMeetings();
         renderSchedule();
-        // Set default values in Working Hours Modal
+        // Set values in Working Hours Modal
         document.getElementById("workingStart").value = workingHours.start;
         document.getElementById("workingEnd").value = workingHours.end;
     }
@@ -325,6 +344,7 @@
         }
         workingHours.start = start;
         workingHours.end = end;
+        saveData();
         // Close modal
         const workingHoursModal = bootstrap.Modal.getInstance(document.getElementById('workingHoursModal'));
         workingHoursModal.hide();
@@ -370,6 +390,8 @@
             end: end,
             type: type
         });
+
+        saveData();
 
         // Reset form
         document.getElementById("addEventForm").reset();
