@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Daily Schedule App</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 60px;
+        }
+        .free-slot {
+            background-color: #d4edda !important;
+        }
+        .event-obligatory {
+            background-color: #0d6efd !important;
+            color: white;
+        }
+        .event-placeholder {
+            background-color: #6c757d !important;
+            color: white;
+        }
+        .schedule-table td, .schedule-table th {
+            vertical-align: middle;
+        }
+        .meeting-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .delete-btn {
+            cursor: pointer;
+            color: #dc3545;
+            border: none;
+            background: none;
+        }
+        .delete-btn:hover {
+            color: #a71d2a;
+        }
+    </style>
+</head>
+<body>
+<!-- Navigation Menu -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">Daily Schedule</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown"
+                aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNavDropdown">
+            <ul class="navbar-nav ms-auto">
+                <!-- Settings Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="settingsDropdown" role="button"
+                       data-bs-toggle="dropdown" aria-expanded="false">
+                        Settings
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsDropdown">
+                        <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#workingHoursModal">Working Hours</button></li>
+                        <!-- Future settings can be added here -->
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Container -->
+<div class="container">
+    <div class="row">
+        <!-- Meetings List -->
+        <div class="col-md-4">
+            <h3>Meetings</h3>
+            <ul class="list-group meeting-list" id="meetingsList">
+                <!-- Meetings will be populated here -->
+            </ul>
+            <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addEventModal">Add Event</button>
+        </div>
+        <!-- Daily Schedule -->
+        <div class="col-md-8">
+            <h3>Daily Schedule</h3>
+            <table class="table table-bordered schedule-table" id="scheduleTable">
+                <!-- Schedule will be populated here -->
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Working Hours Modal -->
+<div class="modal fade" id="workingHoursModal" tabindex="-1" aria-labelledby="workingHoursModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="workingHoursModalLabel">Edit Working Hours</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="workingHoursForm">
+                    <div class="mb-3">
+                        <label for="workingStart" class="form-label">Start Time</label>
+                        <input type="time" class="form-control" id="workingStart" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="workingEnd" class="form-label">End Time</label>
+                        <input type="time" class="form-control" id="workingEnd" required>
+                    </div>
+                    <div id="workingHoursAlert" class="alert alert-danger d-none" role="alert">
+                        End time must be after start time.
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Event Modal -->
+<div class="modal fade" id="addEventModal" tabindex="-1" aria-labelledby="addEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEventModalLabel">Add New Event</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addEventForm">
+                    <div class="mb-3">
+                        <label for="eventName" class="form-label">Event Name</label>
+                        <input type="text" class="form-control" id="eventName" placeholder="e.g., Team Meeting" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventStart" class="form-label">Start Time</label>
+                        <input type="time" class="form-control" id="eventStart" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventEnd" class="form-label">End Time</label>
+                        <input type="time" class="form-control" id="eventEnd" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventType" class="form-label">Event Type</label>
+                        <select class="form-select" id="eventType" required>
+                            <option value="obligatory">Obligatory</option>
+                            <option value="placeholder">Placeholder</option>
+                        </select>
+                    </div>
+                    <div id="addEventAlert" class="alert alert-danger d-none" role="alert">
+                        Please ensure end time is after start time and does not overlap with existing events.
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Event</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS and dependencies (Popper.js) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // JavaScript Code
+
+    // Initial Data
+    let workingHours = {
+        start: "08:30",
+        end: "19:00"
+    };
+
+    let events = [
+        {
+            id: generateUniqueId(),
+            name: "Daily Standup",
+            start: "09:30",
+            end: "09:45",
+            type: "obligatory"
+        }
+    ];
+
+    // Utility Functions
+    function timeToMinutes(time) {
+        const [hours, minutes] = time.split(":").map(Number);
+        return hours * 60 + minutes;
+    }
+
+    function minutesToTime(minutes) {
+        const hrs = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+
+    function getDuration(start, end) {
+        let duration = timeToMinutes(end) - timeToMinutes(start);
+        const hrs = Math.floor(duration / 60);
+        const mins = duration % 60;
+        return `${hrs > 0 ? hrs + 'h ' : ''}${mins}min`;
+    }
+
+    function sortEvents() {
+        events.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+    }
+
+    function generateUniqueId() {
+        return '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Rendering Functions
+    function renderMeetings() {
+        const meetingsList = document.getElementById("meetingsList");
+        meetingsList.innerHTML = "";
+        sortEvents();
+        events.forEach(event => {
+            const li = document.createElement("li");
+            li.className = "list-group-item d-flex justify-content-between align-items-center";
+
+            const eventInfo = document.createElement("div");
+            eventInfo.innerHTML = `<strong>${event.name}</strong> (${event.start} - ${event.end})`;
+
+            const badgeAndDelete = document.createElement("div");
+            badgeAndDelete.className = "d-flex align-items-center";
+
+            const badge = document.createElement("span");
+            badge.className = event.type === "obligatory" ? "badge bg-primary rounded-pill me-2" : "badge bg-secondary rounded-pill me-2";
+            badge.textContent = event.type.charAt(0).toUpperCase() + event.type.slice(1);
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-btn";
+            deleteBtn.innerHTML = "🗑️";
+            deleteBtn.title = "Delete Event";
+            deleteBtn.onclick = () => removeEvent(event.id);
+
+            badgeAndDelete.appendChild(badge);
+            badgeAndDelete.appendChild(deleteBtn);
+
+            li.appendChild(eventInfo);
+            li.appendChild(badgeAndDelete);
+            meetingsList.appendChild(li);
+        });
+    }
+
+    function renderSchedule() {
+        const scheduleTable = document.getElementById("scheduleTable");
+        scheduleTable.innerHTML = "";
+        sortEvents();
+        const tbody = document.createElement("tbody");
+
+        const workStart = timeToMinutes(workingHours.start);
+        const workEnd = timeToMinutes(workingHours.end);
+
+        let currentTime = workStart;
+
+        events.forEach(event => {
+            const eventStart = timeToMinutes(event.start);
+            const eventEnd = timeToMinutes(event.end);
+
+            if (eventStart > currentTime) {
+                // Free Slot
+                const tr = document.createElement("tr");
+                tr.className = "free-slot";
+                const td = document.createElement("td");
+                td.colSpan = 2;
+                td.textContent = `Free (${getDuration(minutesToTime(currentTime), minutesToTime(eventStart))})`;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            }
+
+            // Scheduled Event
+            const trEvent = document.createElement("tr");
+            const tdName = document.createElement("td");
+            tdName.textContent = event.name;
+            const tdTime = document.createElement("td");
+            tdTime.textContent = `${event.start} - ${event.end}`;
+            trEvent.appendChild(tdName);
+            trEvent.appendChild(tdTime);
+            trEvent.className = event.type === "obligatory" ? "event-obligatory" : "event-placeholder";
+            tbody.appendChild(trEvent);
+
+            currentTime = eventEnd;
+        });
+
+        if (currentTime < workEnd) {
+            // Free Slot at the end
+            const tr = document.createElement("tr");
+            tr.className = "free-slot";
+            const td = document.createElement("td");
+            td.colSpan = 2;
+            td.textContent = `Free (${getDuration(minutesToTime(currentTime), minutesToTime(workEnd))})`;
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+        }
+
+        scheduleTable.appendChild(tbody);
+    }
+
+    // Event Removal Function
+    function removeEvent(eventId) {
+        const event = events.find(ev => ev.id === eventId);
+        if (!event) return;
+
+        // Confirmation Dialog
+        if (confirm(`Are you sure you want to delete the event "${event.name}"?`)) {
+            events = events.filter(ev => ev.id !== eventId);
+            renderMeetings();
+            renderSchedule();
+        }
+    }
+
+    // Initialization
+    function initialize() {
+        renderMeetings();
+        renderSchedule();
+        // Set default values in Working Hours Modal
+        document.getElementById("workingStart").value = workingHours.start;
+        document.getElementById("workingEnd").value = workingHours.end;
+    }
+
+    // Event Handlers
+    document.getElementById("workingHoursForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const start = document.getElementById("workingStart").value;
+        const end = document.getElementById("workingEnd").value;
+        const alertBox = document.getElementById("workingHoursAlert");
+        if (timeToMinutes(end) <= timeToMinutes(start)) {
+            alertBox.classList.remove("d-none");
+            return;
+        } else {
+            alertBox.classList.add("d-none");
+        }
+        workingHours.start = start;
+        workingHours.end = end;
+        // Close modal
+        const workingHoursModal = bootstrap.Modal.getInstance(document.getElementById('workingHoursModal'));
+        workingHoursModal.hide();
+        renderSchedule();
+    });
+
+    document.getElementById("addEventForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const name = document.getElementById("eventName").value.trim();
+        const start = document.getElementById("eventStart").value;
+        const end = document.getElementById("eventEnd").value;
+        const type = document.getElementById("eventType").value;
+        const alertBox = document.getElementById("addEventAlert");
+
+        if (timeToMinutes(end) <= timeToMinutes(start)) {
+            alertBox.textContent = "End time must be after start time.";
+            alertBox.classList.remove("d-none");
+            return;
+        }
+
+        // Check for overlapping events
+        const newStart = timeToMinutes(start);
+        const newEnd = timeToMinutes(end);
+        const overlap = events.some(event => {
+            const eventStart = timeToMinutes(event.start);
+            const eventEnd = timeToMinutes(event.end);
+            return (newStart < eventEnd && newEnd > eventStart);
+        });
+
+        if (overlap) {
+            alertBox.textContent = "Event times overlap with existing events.";
+            alertBox.classList.remove("d-none");
+            return;
+        } else {
+            alertBox.classList.add("d-none");
+        }
+
+        // Add Event
+        events.push({
+            id: generateUniqueId(),
+            name: name,
+            start: start,
+            end: end,
+            type: type
+        });
+
+        // Reset form
+        document.getElementById("addEventForm").reset();
+
+        // Close modal
+        const addEventModal = bootstrap.Modal.getInstance(document.getElementById('addEventModal'));
+        addEventModal.hide();
+
+        // Re-render
+        renderMeetings();
+        renderSchedule();
+    });
+
+    // Initialize on page load
+    window.onload = initialize;
+</script>
+</body>
+</html>
