@@ -206,8 +206,8 @@
 
     // Initial Data
     let workingHours = {
-        start: "08:00",
-        end: "18:00"
+        start: "08:30",
+        end: "19:00"
     };
 
     let events = [
@@ -223,6 +223,10 @@
 
     // Utility Functions
     function timeToMinutes(time) {
+        if (typeof time !== 'string') {
+            console.error("Expected a string for time, but got:", typeof time);
+            return 0;
+        }
         const [hours, minutes] = time.split(":").map(Number);
         return hours * 60 + minutes;
     }
@@ -263,10 +267,20 @@
             const savedWorkingHours = localStorage.getItem('workingHours');
             const savedEvents = localStorage.getItem('events');
             if (savedWorkingHours) {
-                workingHours = JSON.parse(savedWorkingHours);
+                const parsedWorkingHours = JSON.parse(savedWorkingHours);
+                // Ensure that start and end are strings
+                workingHours.start = typeof parsedWorkingHours.start === 'string' ? parsedWorkingHours.start : "08:30";
+                workingHours.end = typeof parsedWorkingHours.end === 'string' ? parsedWorkingHours.end : "19:00";
             }
             if (savedEvents) {
-                events = JSON.parse(savedEvents);
+                const parsedEvents = JSON.parse(savedEvents);
+                // Ensure that each event has string start and end
+                events = parsedEvents.map(event => ({
+                    ...event,
+                    start: typeof event.start === 'string' ? event.start : "09:00",
+                    end: typeof event.end === 'string' ? event.end : "10:00",
+                    note: typeof event.note === 'string' ? event.note : ""
+                }));
             }
         } else {
             alert("Sorry, your browser does not support Web Storage...");
@@ -386,6 +400,8 @@
         let currentTime = workStart;
         let tableMarkdown = `| Time | Event Name | Type | Note |\n| --- | --- | --- | --- |\n`;
 
+        let totalFreeTime = 0; // in minutes
+
         events.forEach(event => {
             const eventStart = timeToMinutes(event.start);
             const eventEnd = timeToMinutes(event.end);
@@ -394,8 +410,9 @@
                 // Free Slot
                 const freeStart = minutesToTime(currentTime);
                 const freeEnd = minutesToTime(eventStart);
-                const duration = getDuration(minutesToTime(currentTime), minutesToTime(eventStart));
-                tableMarkdown += `| ${freeStart} - ${freeEnd} | Free (${duration}) | - | - |\n`;
+                const duration = eventStart - currentTime;
+                tableMarkdown += `| ${freeStart} - ${freeEnd} | Free (${getDuration(freeStart, freeEnd)}) | - | - |\n`;
+                totalFreeTime += duration;
             }
 
             // Scheduled Event
@@ -408,9 +425,29 @@
             // Free Slot at the end
             const freeStart = minutesToTime(currentTime);
             const freeEnd = minutesToTime(workEnd);
-            const duration = getDuration(minutesToTime(currentTime), minutesToTime(workEnd));
-            tableMarkdown += `| ${freeStart} - ${freeEnd} | Free (${duration}) | - | - |\n`;
+            const duration = workEnd - currentTime;
+            tableMarkdown += `| ${freeStart} - ${freeEnd} | Free (${getDuration(freeStart, freeEnd)}) | - | - |\n`;
+            totalFreeTime += duration;
         }
+
+        // Calculate Budgets Based on Current Time
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTimeMinutes = timeToMinutes(`${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`);
+
+        const elapsedTime = currentTimeMinutes - workStart;
+        const budgetQualityWork = totalFreeTime;
+        // Removed Budget for work in the now context as per instruction
+
+        // Convert budgets to hours and minutes
+        const budgetQualityWorkHours = Math.floor(budgetQualityWork / 60);
+        const budgetQualityWorkMinutes = budgetQualityWork % 60;
+
+        // Append Summary to Markdown
+        tableMarkdown += `\n**Summary:**\n`;
+        tableMarkdown += `- Budget for quality work: ${budgetQualityWorkHours}h ${budgetQualityWorkMinutes}min\n`;
+        // Removed the second budget line
 
         // Attempt to Copy to Clipboard
         copyToClipboard(tableMarkdown).then(() => {
@@ -432,7 +469,7 @@
     // Helper Function to Copy Text to Clipboard
     function copyToClipboard(text) {
         if (navigator.clipboard && window.isSecureContext) {
-            // Navigator clipboard api method'
+            // Navigator clipboard api method
             return navigator.clipboard.writeText(text);
         } else {
             // text area method
@@ -587,9 +624,6 @@
 
     // Export Button Event Listener (Footer)
     document.getElementById("exportFooterBtn").addEventListener("click", exportToNotion);
-
-    // Export Button Event Listener (Navbar if needed)
-    // document.getElementById("exportBtn").addEventListener("click", exportToNotion);
 
     // Initialize on page load
     window.onload = initialize;
